@@ -5,18 +5,15 @@ package hypersock_websocket
  * Based on gorilla/websocket patterns
  */
 
-import "core:net"
-import "core:os"
-import "core:fmt"
-import "core:strings"
-import "core:time"
+import http "../hypersock_http"
 import "core:crypto"
 import "core:crypto/legacy/sha1"
-
 import "core:encoding/base64"
-import "core:encoding/endian"
+import "core:net"
+import "core:os"
+import "core:strings"
 import "core:sync"
-import http "../hypersock_http"
+import "core:time"
 
 // WebSocket frame opcodes (RFC 6455)
 Opcode :: enum u8 {
@@ -76,52 +73,55 @@ Conn_State :: enum {
 
 // Conn represents a WebSocket connection
 Conn :: struct {
-	conn:        net.TCP_Socket,
-	is_server:   bool,
-	state:       Conn_State,
-	subprotocol: string,
-	
+	conn:           net.TCP_Socket,
+	tls_socket:     ^http.TLS_Socket,
+	is_server:      bool,
+	state:          Conn_State,
+	subprotocol:    string,
+
 	// Read fields
-	read_buf:        [dynamic]byte,
-	read_remaining:  i64,
-	read_final:      bool,
-	read_msg_type:   Opcode,
-	read_limit:      i64,
-	read_mask_key:   [4]byte,
-	read_mask_pos:   int,
-	read_err:        os.Errno,
-	
+	read_buf:       [dynamic]byte,
+	read_remaining: i64,
+	read_final:     bool,
+	read_msg_type:  Opcode,
+	read_limit:     i64,
+	read_mask_key:  [4]byte,
+	read_mask_pos:  int,
+	read_err:       os.Error,
+
 	// Write fields
-	write_buf:        [dynamic]byte,
-	write_mutex:      sync.Mutex,
-	write_deadline:   time.Time,
-	is_writing:       bool,
-	
+	write_buf:      [dynamic]byte,
+	write_mutex:    sync.Mutex,
+	write_deadline: time.Time,
+	is_writing:     bool,
+
 	// Read deadline
-	read_deadline:    time.Time,
+	read_deadline:  time.Time,
+	close_code:     u16,
+	close_text:     [dynamic]byte,
 	// Handlers
-	handle_ping: proc(data: string) -> os.Errno,
-	handle_pong: proc(data: string) -> os.Errno,
-	handle_close: proc(code: u16, text: string) -> os.Errno,
+	handle_ping:    proc(data: string) -> os.Error,
+	handle_pong:    proc(data: string) -> os.Error,
+	handle_close:   proc(code: u16, text: string) -> os.Error,
 }
 
 // Upgrader handles HTTP to WebSocket upgrade
 Upgrader :: struct {
-	read_buffer_size:  int,
-	write_buffer_size: int,
-	handshake_timeout: time.Duration,
-	subprotocols:    []string,
-	check_origin:    proc(req: ^http.Request) -> bool,
+	read_buffer_size:   int,
+	write_buffer_size:  int,
+	handshake_timeout:  time.Duration,
+	subprotocols:       []string,
+	check_origin:       proc(req: ^http.Request) -> bool,
 	enable_compression: bool,
 }
 
 // Dialer creates client WebSocket connections
 Dialer :: struct {
-	net_dial:          proc(network, addr: string) -> (net.TCP_Socket, os.Errno),
-	read_buffer_size:  int,
-	write_buffer_size: int,
-	handshake_timeout: time.Duration,
-	subprotocols:      []string,
+	net_dial:           proc(network, addr: string) -> (net.TCP_Socket, os.Error),
+	read_buffer_size:   int,
+	write_buffer_size:  int,
+	handshake_timeout:  time.Duration,
+	subprotocols:       []string,
 	enable_compression: bool,
 }
 
@@ -137,8 +137,8 @@ WebSocket_Error :: enum {
 
 // Initialize default upgrader
 upgrader_default :: proc() -> Upgrader {
-	return Upgrader{
-		read_buffer_size  = 4096,
+	return Upgrader {
+		read_buffer_size = 4096,
 		write_buffer_size = 4096,
 		handshake_timeout = 45 * time.Second,
 	}
@@ -146,8 +146,8 @@ upgrader_default :: proc() -> Upgrader {
 
 // Initialize default dialer
 dialer_default :: proc() -> Dialer {
-	return Dialer{
-		read_buffer_size  = 4096,
+	return Dialer {
+		read_buffer_size = 4096,
 		write_buffer_size = 4096,
 		handshake_timeout = 45 * time.Second,
 	}
@@ -159,19 +159,19 @@ compute_accept_key :: proc(challenge: string) -> string {
 	magic := "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 	combined := strings.concatenate([]string{challenge, magic})
 	defer delete(combined)
-	
+
 	// Initialize SHA1 context
 	ctx: sha1.Context
 	sha1.init(&ctx)
-	
+
 	// Hash the combined string
 	combined_bytes := transmute([]byte)combined
 	sha1.update(&ctx, combined_bytes)
-	
+
 	// Get the final hash
 	hash: [sha1.DIGEST_SIZE]byte
 	sha1.final(&ctx, hash[:])
-	
+
 	return base64.encode(hash[:])
 }
 

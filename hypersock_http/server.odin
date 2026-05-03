@@ -12,22 +12,21 @@ package hypersock_http
  * - Keep-alive connections
  */
 
+import "core:fmt"
 import "core:net"
 import "core:os"
-import "core:fmt"
-import "core:strings"
 import "core:strconv"
-import "core:time"
+import "core:strings"
 import "core:sync"
 import "core:thread"
-import "core:mem"
+import "core:time"
 
 // ConnectionQueue is a thread-safe queue for accepted connections
 ConnectionQueue :: struct {
-	mutex:    sync.Mutex,
-	cond:     sync.Cond,
-	items:    [dynamic]net.TCP_Socket,
-	closed:   bool,
+	mutex:  sync.Mutex,
+	cond:   sync.Cond,
+	items:  [dynamic]net.TCP_Socket,
+	closed: bool,
 }
 
 // Queue initialization
@@ -91,22 +90,22 @@ queue_is_closed :: proc(q: ^ConnectionQueue) -> bool {
 
 // Server implements HTTP server
 Server :: struct {
-	handler:          RequestHandler,
-	name:             string,
-	read_buffer_size: int,
+	handler:           RequestHandler,
+	name:              string,
+	read_buffer_size:  int,
 	write_buffer_size: int,
-	read_timeout:     time.Duration,
-	write_timeout:    time.Duration,
-	idle_timeout:     time.Duration,
-	max_body_size:    int,
-	concurrency:      int,
-	
+	read_timeout:      time.Duration,
+	write_timeout:     time.Duration,
+	idle_timeout:      time.Duration,
+	max_body_size:     int,
+	concurrency:       int,
+
 	// Internal fields
-	listen:           net.TCP_Socket,
-	accept_queue:     ConnectionQueue,
-	wg:               sync.Wait_Group,
-	running_mutex:    sync.Mutex,
-	running:          bool,
+	listen:            net.TCP_Socket,
+	accept_queue:      ConnectionQueue,
+	wg:                sync.Wait_Group,
+	running_mutex:     sync.Mutex,
+	running:           bool,
 }
 
 // Server thread context data
@@ -120,23 +119,23 @@ WorkerThreadData :: struct {
 }
 
 // HijackHandler is called when a connection is hijacked
-Hijack_Handler :: proc(^RequestCtx) -> (net.TCP_Socket, os.Errno)
+Hijack_Handler :: proc(_: ^RequestCtx) -> (net.TCP_Socket, os.Error)
 
 // RequestCtx contains incoming request and manages outgoing response
 RequestCtx :: struct {
-	request:      Request,
-	response:     Response,
-	conn:         net.TCP_Socket,
-	conn_time:    time.Time,
-	request_num:  u64,
-	remote_addr:  net.Address,
-	local_addr:   net.Address,
-	
+	request:     Request,
+	response:    Response,
+	conn:        net.TCP_Socket,
+	conn_time:   time.Time,
+	request_num: u64,
+	remote_addr: net.Address,
+	local_addr:  net.Address,
+
 	// User data storage
-	user_data:    map[string]any,
-	
+	user_data:   map[string]any,
+
 	// Connection hijacking
-	hijacked:     bool,
+	hijacked:    bool,
 }
 
 // Create new HTTP server
@@ -149,12 +148,12 @@ server_new :: proc(handler: RequestHandler) -> ^Server {
 	s.read_timeout = 30 * time.Second
 	s.write_timeout = 30 * time.Second
 	s.idle_timeout = 10 * time.Second
-	s.max_body_size = 4 * 1024 * 1024  // 4MB
+	s.max_body_size = 4 * 1024 * 1024 // 4MB
 	s.concurrency = 256
 	s.running = false
-	
+
 	queue_init(&s.accept_queue)
-	
+
 	return s
 }
 
@@ -163,39 +162,39 @@ server_destroy :: proc(s: ^Server) {
 	if s == nil {
 		return
 	}
-	
+
 	// Shutdown if running
 	if server_is_running(s) {
 		shutdown(s)
 	}
-	
+
 	// Clean up queue
 	queue_destroy(&s.accept_queue)
-	
+
 	// Free server
 	free(s)
 }
 
 // ListenAndServe starts HTTP server on addr
-listen_and_serve :: proc(s: ^Server, addr: string) -> os.Errno {
+listen_and_serve :: proc(s: ^Server, addr: string) -> os.Error {
 	// Create listener
 	endpoint, endpoint_err := net.parse_endpoint(addr)
 	if endpoint_err {
-		return os.EINVAL
+		return invalid_parameter_error()
 	}
-	
+
 	listen_socket, listen_err := net.listen_tcp(endpoint)
 	if listen_err != nil {
-		return os.ECONNREFUSED
+		return connection_refused_error()
 	}
 	s.listen = listen_socket
-	
+
 	sync.mutex_lock(&s.running_mutex)
 	s.running = true
 	sync.mutex_unlock(&s.running_mutex)
-	
+
 	fmt.printf("Server listening on %s\n", addr)
-	
+
 	// Start accept thread
 	accept_data := new(AcceptThreadData)
 	accept_data.server = s
@@ -207,7 +206,7 @@ listen_and_serve :: proc(s: ^Server, addr: string) -> os.Errno {
 	})
 	accept_thread.data = accept_data
 	thread.start(accept_thread)
-	
+
 	// Start worker pool
 	for i := 0; i < s.concurrency; i += 1 {
 		worker_data := new(WorkerThreadData)
@@ -222,13 +221,13 @@ listen_and_serve :: proc(s: ^Server, addr: string) -> os.Errno {
 		worker_thread.data = worker_data
 		thread.start(worker_thread)
 	}
-	
+
 	// Wait for shutdown signal (block main thread)
 	sync.wait_group_wait(&s.wg)
-	
+
 	// Close listener
 	net.close(s.listen)
-	
+
 	return os.ERROR_NONE
 }
 
@@ -243,7 +242,7 @@ server_is_running :: proc(s: ^Server) -> bool {
 // Accept incoming connections
 server_accept :: proc(s: ^Server) {
 	defer sync.wait_group_done(&s.wg)
-	
+
 	for server_is_running(s) {
 		conn, _, accept_err := net.accept_tcp(s.listen)
 		if accept_err != nil {
@@ -252,7 +251,7 @@ server_accept :: proc(s: ^Server) {
 			}
 			continue
 		}
-		
+
 		// Try to push to queue, exit if shutdown
 		if !queue_push(&s.accept_queue, conn) {
 			net.close(conn)
@@ -264,14 +263,14 @@ server_accept :: proc(s: ^Server) {
 // Worker handles connections
 server_worker :: proc(s: ^Server, worker_id: int) {
 	defer sync.wait_group_done(&s.wg)
-	
+
 	for {
 		conn, ok := queue_pop(&s.accept_queue)
 		if !ok {
 			// Queue closed, exit worker
 			return
 		}
-		
+
 		server_handle_connection(s, conn)
 	}
 }
@@ -280,13 +279,13 @@ server_worker :: proc(s: ^Server, worker_id: int) {
 server_handle_connection :: proc(s: ^Server, conn: net.TCP_Socket) {
 	// Check if connection was hijacked before closing
 	hijacked := false
-	
+
 	defer {
 		if !hijacked {
 			net.close(conn)
 		}
 	}
-	
+
 	// Set timeouts using socket options
 	if s.read_timeout > 0 {
 		net.set_option(conn, .Receive_Timeout, int(s.read_timeout))
@@ -294,54 +293,53 @@ server_handle_connection :: proc(s: ^Server, conn: net.TCP_Socket) {
 	if s.write_timeout > 0 {
 		net.set_option(conn, .Send_Timeout, int(s.write_timeout))
 	}
-	
+
 	ctx: RequestCtx
 	ctx.conn = conn
 	ctx.conn_time = time.now()
 	ctx.request_num = 1
 	ctx.remote_addr = {}
 	ctx.local_addr = {}
-	
+
 	for server_is_running(s) {
 		// Read request
 		err := read_request(conn, &ctx.request)
 		if err != os.ERROR_NONE {
-			if err != os.ECONNRESET {
+			if err != connection_reset_error() {
 				fmt.println("Read error:", err)
 			}
 			break
 		}
-		
+
 		// Reset response
 		response_reset(&ctx.response)
-		
+
 		// Set default headers
 		header_set(&ctx.response.header, "Server", s.name)
-	header_set(&ctx.response.header, "Date", fmt.tprintf("%v", time.now()))
-		
+		header_set(&ctx.response.header, "Date", fmt.tprintf("%v", time.now()))
+
 		// Call handler
 		s.handler(&ctx)
-		
+
 		// Write response
 		err = write_response(conn, &ctx.response)
 		if err != os.ERROR_NONE {
 			fmt.println("Write error:", err)
 			break
 		}
-		
+
 		// Check if connection was hijacked
 		if ctx.hijacked {
 			hijacked = true
 			break
 		}
-		
+
 		// Check if connection should be closed
 		connection := header_get(&ctx.request.header, "Connection")
-		if strings.to_lower(connection) == "close" ||
-		   ctx.response.status_code >= 400 {
+		if strings.to_lower(connection) == "close" || ctx.response.status_code >= 400 {
 			break
 		}
-		
+
 		ctx.request_num += 1
 	}
 }
@@ -351,10 +349,10 @@ shutdown :: proc(s: ^Server) {
 	sync.mutex_lock(&s.running_mutex)
 	s.running = false
 	sync.mutex_unlock(&s.running_mutex)
-	
+
 	// Close the accept queue to signal workers to exit
 	queue_close(&s.accept_queue)
-	
+
 	// Close the listener to unblock accept()
 	if s.listen != {} {
 		net.close(s.listen)
@@ -502,32 +500,33 @@ form_value :: proc(ctx: ^RequestCtx, key: string) -> string {
 			return query_value
 		}
 	}
-	
+
 	// Then check POST body if content-type is form data
 	content_type := header_get(&ctx.request.header, "Content-Type")
-	if strings.contains(content_type, "application/x-www-form-urlencoded") && len(ctx.request.body) > 0 {
+	if strings.contains(content_type, "application/x-www-form-urlencoded") &&
+	   len(ctx.request.body) > 0 {
 		post_value := parse_form_value(string(ctx.request.body), key)
 		if post_value != "" {
 			return post_value
 		}
 	}
-	
+
 	return ""
 }
 
 // PostArgs parses and returns POST form arguments
 post_args :: proc(ctx: ^RequestCtx) -> map[string]string {
 	args: map[string]string
-	
+
 	if len(ctx.request.body) == 0 {
 		return args
 	}
-	
+
 	content_type := header_get(&ctx.request.header, "Content-Type")
 	if !strings.contains(content_type, "application/x-www-form-urlencoded") {
 		return args
 	}
-	
+
 	return parse_form(string(ctx.request.body))
 }
 
@@ -535,23 +534,23 @@ post_args :: proc(ctx: ^RequestCtx) -> map[string]string {
 parse_query_value :: proc(query_str, key: string) -> string {
 	pairs := strings.split(query_str, "&")
 	defer delete(pairs)
-	
+
 	for pair in pairs {
 		parts := strings.split(pair, "=")
 		defer delete(parts)
-		
+
 		if len(parts) >= 1 {
 			url_decode, _ := strings.replace(parts[0], "+", " ", -1)
 			if url_decode == key {
 				if len(parts) >= 2 {
 					result, _ := strings.replace(parts[1], "+", " ", -1)
-				return result
+					return result
 				}
 				return ""
 			}
 		}
 	}
-	
+
 	return ""
 }
 
@@ -559,11 +558,11 @@ parse_query_value :: proc(query_str, key: string) -> string {
 parse_form_value :: proc(form_str, key: string) -> string {
 	pairs := strings.split(form_str, "&")
 	defer delete(pairs)
-	
+
 	for pair in pairs {
 		parts := strings.split(pair, "=")
 		defer delete(parts)
-		
+
 		if len(parts) >= 1 {
 			if parts[0] == key {
 				if len(parts) >= 2 {
@@ -573,21 +572,21 @@ parse_form_value :: proc(form_str, key: string) -> string {
 			}
 		}
 	}
-	
+
 	return ""
 }
 
 // parse_form parses a form string into a map
 parse_form :: proc(form_str: string) -> map[string]string {
 	result := make(map[string]string)
-	
+
 	pairs := strings.split(form_str, "&")
 	defer delete(pairs)
-	
+
 	for pair in pairs {
 		parts := strings.split(pair, "=")
 		defer delete(parts)
-		
+
 		if len(parts) >= 1 {
 			key := parts[0]
 			if len(parts) >= 2 {
@@ -597,16 +596,16 @@ parse_form :: proc(form_str: string) -> map[string]string {
 			}
 		}
 	}
-	
+
 	return result
 }
 
 // Hijack takes over the connection from the server
 // Returns the underlying TCP socket
 // After hijacking, the server will not close the connection
-hijack :: proc(ctx: ^RequestCtx) -> (net.TCP_Socket, os.Errno) {
+hijack :: proc(ctx: ^RequestCtx) -> (net.TCP_Socket, os.Error) {
 	if ctx.hijacked {
-		return {}, os.EINVAL
+		return {}, invalid_parameter_error()
 	}
 	ctx.hijacked = true
 	return ctx.conn, os.ERROR_NONE
@@ -614,10 +613,12 @@ hijack :: proc(ctx: ^RequestCtx) -> (net.TCP_Socket, os.Errno) {
 
 // String returns a string representation of the context
 string_ctx :: proc(ctx: ^RequestCtx) -> string {
-	return fmt.tprintf("[#%d %s<->%s %s %s]", 
+	return fmt.tprintf(
+		"[#%d %s<->%s %s %s]",
 		ctx.request_num,
 		ctx.local_addr,
 		ctx.remote_addr,
 		method_to_string(ctx.request.method),
-		ctx.request.uri.path)
+		ctx.request.uri.path,
+	)
 }

@@ -12,14 +12,12 @@ package hypersock_http
  * - Concurrent-safe operations
  */
 
-import "core:net"
-import "core:os"
 import "core:fmt"
-import "core:strings"
+import "core:net"
 import "core:strconv"
-import "core:time"
+import "core:strings"
 import "core:sync"
-import "core:mem"
+import "core:time"
 
 // HTTP Methods
 Method :: enum {
@@ -34,60 +32,67 @@ Method :: enum {
 
 method_to_string :: proc(m: Method) -> string {
 	switch m {
-	case .GET:     return "GET"
-	case .POST:    return "POST"
-	case .PUT:     return "PUT"
-	case .DELETE:  return "DELETE"
-	case .HEAD:    return "HEAD"
-	case .OPTIONS: return "OPTIONS"
-	case .PATCH:   return "PATCH"
+	case .GET:
+		return "GET"
+	case .POST:
+		return "POST"
+	case .PUT:
+		return "PUT"
+	case .DELETE:
+		return "DELETE"
+	case .HEAD:
+		return "HEAD"
+	case .OPTIONS:
+		return "OPTIONS"
+	case .PATCH:
+		return "PATCH"
 	}
 	return "GET"
 }
 
 // HTTP Status codes
-Status_OK                   :: 200
-Status_Created              :: 201
-Status_Accepted             :: 202
-Status_NoContent            :: 204
-Status_MovedPermanently     :: 301
-Status_Found                :: 302
-Status_SeeOther             :: 303
-Status_NotModified          :: 304
-Status_TemporaryRedirect    :: 307
-Status_PermanentRedirect    :: 308
-Status_BadRequest           :: 400
-Status_Unauthorized         :: 401
-Status_Forbidden            :: 403
-Status_NotFound             :: 404
-Status_MethodNotAllowed     :: 405
-Status_RequestTimeout       :: 408
-Status_Conflict             :: 409
-Status_Gone                 :: 410
-Status_LengthRequired       :: 411
-Status_PayloadTooLarge      :: 413
-Status_URITooLong           :: 414
+Status_OK :: 200
+Status_Created :: 201
+Status_Accepted :: 202
+Status_NoContent :: 204
+Status_MovedPermanently :: 301
+Status_Found :: 302
+Status_SeeOther :: 303
+Status_NotModified :: 304
+Status_TemporaryRedirect :: 307
+Status_PermanentRedirect :: 308
+Status_BadRequest :: 400
+Status_Unauthorized :: 401
+Status_Forbidden :: 403
+Status_NotFound :: 404
+Status_MethodNotAllowed :: 405
+Status_RequestTimeout :: 408
+Status_Conflict :: 409
+Status_Gone :: 410
+Status_LengthRequired :: 411
+Status_PayloadTooLarge :: 413
+Status_URITooLong :: 414
 Status_UnsupportedMediaType :: 415
-Status_TooManyRequests      :: 429
-Status_InternalServerError  :: 500
-Status_NotImplemented       :: 501
-Status_BadGateway           :: 502
-Status_ServiceUnavailable   :: 503
-Status_GatewayTimeout       :: 504
+Status_TooManyRequests :: 429
+Status_InternalServerError :: 500
+Status_NotImplemented :: 501
+Status_BadGateway :: 502
+Status_ServiceUnavailable :: 503
+Status_GatewayTimeout :: 504
 
 // Header represents HTTP headers (supports multiple values per key)
 Header :: struct {
-	data: map[string][dynamic]string,
+	data:  map[string][dynamic]string,
 	mutex: sync.Mutex,
 }
 
 // Request represents an HTTP request
 Request :: struct {
-	method:   Method,
-	uri:      URI,
-	header:   Header,
-	body:     []byte,
-	timeout:  time.Duration,
+	method:    Method,
+	uri:       URI,
+	header:    Header,
+	body:      []byte,
+	timeout:   time.Duration,
 	// User data for passing values between handlers
 	user_data: map[string]any,
 }
@@ -97,17 +102,17 @@ Response :: struct {
 	status_code: int,
 	header:      Header,
 	body:        []byte,
-	keep_body:   bool,  // Don't release body buffer after use
+	keep_body:   bool, // Don't release body buffer after use
 }
 
 // URI represents a parsed URL
 URI :: struct {
-	scheme:   string,
-	host:     string,
-	port:     int,
-	path:     string,
-	query:    string,
-	fragment: string,
+	scheme:     string,
+	host:       string,
+	port:       int,
+	path:       string,
+	query:      string,
+	fragment:   string,
 	// Parsed query args
 	query_args: Args,
 }
@@ -126,46 +131,46 @@ RequestHandler :: proc(ctx: ^RequestCtx)
 
 // Client implements high-performance HTTP client
 Client :: struct {
-	host_clients:         map[string]^HostClient,
-	mutex:                sync.RW_Mutex,
-	max_conns_per_host:   int,
+	host_clients:           map[string]^HostClient,
+	mutex:                  sync.RW_Mutex,
+	max_conns_per_host:     int,
 	max_idle_conn_duration: time.Duration,
-	read_buffer_size:     int,
-	write_buffer_size:    int,
-	read_timeout:         time.Duration,
-	write_timeout:        time.Duration,
+	read_buffer_size:       int,
+	write_buffer_size:      int,
+	read_timeout:           time.Duration,
+	write_timeout:          time.Duration,
 	max_response_body_size: int,
-	tls_config:           ^TLS_Config,
-	name:                 string,
+	tls_config:             ^TLS_Config,
+	name:                   string,
 }
 
 // TLS_Config is defined in tls.odin
 
 // HostClient manages connections to a specific host
 HostClient :: struct {
-	addr:                  string,
-	is_tls:                bool,
-	max_conns:             int,
-	conns:                 [dynamic]^clientConn,
-	mutex:                 sync.Mutex,
-	conns_count:           int,
-	pending_requests:      int,
+	addr:                   string,
+	is_tls:                 bool,
+	max_conns:              int,
+	conns:                  [dynamic]^clientConn,
+	mutex:                  sync.Mutex,
+	conns_count:            int,
+	pending_requests:       int,
 	max_idle_conn_duration: time.Duration,
-	read_buffer_size:      int,
-	write_buffer_size:     int,
-	read_timeout:          time.Duration,
-	write_timeout:         time.Duration,
+	read_buffer_size:       int,
+	write_buffer_size:      int,
+	read_timeout:           time.Duration,
+	write_timeout:          time.Duration,
 	max_response_body_size: int,
-	client:                ^Client,
+	client:                 ^Client,
 }
 
 // clientConn represents a pooled connection
 clientConn :: struct {
-	conn:        net.TCP_Socket,
-	tls_socket:   ^TLS_Socket,  // TLS wrapper (nil for plain TCP)
-	is_tls:      bool,          // Whether this is a TLS connection
-	created:     time.Time,
-	last_use:    time.Time,
+	conn:       net.TCP_Socket,
+	tls_socket: ^TLS_Socket, // TLS wrapper (nil for plain TCP)
+	is_tls:     bool, // Whether this is a TLS connection
+	created:    time.Time,
+	last_use:   time.Time,
 }
 
 // Default configuration values
@@ -192,12 +197,12 @@ _default_client_initialized: bool
 // Initialize client with default settings
 client_default :: proc() -> ^Client {
 	if !_default_client_initialized {
-		_default_client = Client{
-			max_conns_per_host = Default_Max_Conns_Per_Host,
+		_default_client = Client {
+			max_conns_per_host     = Default_Max_Conns_Per_Host,
 			max_idle_conn_duration = Default_Max_Idle_Conn_Duration,
-			read_buffer_size = Default_Read_Buffer_Size,
-			write_buffer_size = Default_Write_Buffer_Size,
-			name = "odin-http-client",
+			read_buffer_size       = Default_Read_Buffer_Size,
+			write_buffer_size      = Default_Write_Buffer_Size,
+			name                   = "odin-http-client",
 		}
 		_default_client_initialized = true
 	}
@@ -218,14 +223,14 @@ client_new :: proc() -> ^Client {
 // Clean up client
 client_destroy :: proc(c: ^Client) {
 	if c == nil do return
-	
+
 	// Close all host clients
 	for _, hc in c.host_clients {
 		host_client_close(hc)
 		free(hc)
 	}
 	delete(c.host_clients)
-	
+
 	if c != &_default_client {
 		free(c)
 	}
@@ -234,30 +239,30 @@ client_destroy :: proc(c: ^Client) {
 // Parse URL string into URI structure
 uri_parse :: proc(url_str: string) -> (URI, bool) {
 	uri: URI
-	
+
 	// Simple URL parser
 	rest := url_str
-	
+
 	// Extract scheme
 	if idx := strings.index(rest, "://"); idx != -1 {
 		uri.scheme = strings.to_lower(rest[:idx])
-		rest = rest[idx+3:]
+		rest = rest[idx + 3:]
 	}
-	
+
 	// Extract fragment
 	if idx := strings.index(rest, "#"); idx != -1 {
-		uri.fragment = rest[idx+1:]
+		uri.fragment = rest[idx + 1:]
 		rest = rest[:idx]
 	}
-	
+
 	// Extract query
 	if idx := strings.index(rest, "?"); idx != -1 {
-		uri.query = rest[idx+1:]
+		uri.query = rest[idx + 1:]
 		rest = rest[:idx]
 		// Parse query args
 		parse_args(&uri.query_args, uri.query)
 	}
-	
+
 	// Extract host and port
 	path_idx := strings.index(rest, "/")
 	if path_idx == -1 {
@@ -267,10 +272,10 @@ uri_parse :: proc(url_str: string) -> (URI, bool) {
 		uri.host = rest[:path_idx]
 		uri.path = rest[path_idx:]
 	}
-	
+
 	// Check for port
 	if idx := strings.last_index(uri.host, ":"); idx != -1 {
-		port_str := uri.host[idx+1:]
+		port_str := uri.host[idx + 1:]
 		// Parse port using strconv
 		if parsed_port, ok := strconv.parse_int(port_str, 10); ok {
 			uri.port = int(parsed_port)
@@ -291,7 +296,7 @@ uri_parse :: proc(url_str: string) -> (URI, bool) {
 			uri.port = 80
 		}
 	}
-	
+
 	return uri, true
 }
 
@@ -300,14 +305,14 @@ url_decode :: proc(s: string) -> string {
 	if !strings.contains(s, "%") {
 		return s
 	}
-	
+
 	result := strings.builder_make()
 	defer strings.builder_destroy(&result)
-	
+
 	for i := 0; i < len(s); i += 1 {
 		if s[i] == '%' && i + 2 < len(s) {
 			// Parse hex value
-			hex_str := s[i+1:i+3]
+			hex_str := s[i + 1:i + 3]
 			if val, ok := strconv.parse_int(hex_str, 16); ok {
 				fmt.sbprintf(&result, "%c", byte(val))
 				i += 2
@@ -320,17 +325,17 @@ url_decode :: proc(s: string) -> string {
 			strings.write_byte(&result, s[i])
 		}
 	}
-	
+
 	return strings.to_string(result)
 }
 
 // Parse query string into Args with URL decoding
 parse_args :: proc(args: ^Args, query: string) {
 	args.data = make(map[string][dynamic]string)
-	
+
 	pairs := strings.split(query, "&")
 	defer delete(pairs)
-	
+
 	for pair in pairs {
 		kv := strings.split(pair, "=")
 		if len(kv) == 2 {
@@ -357,11 +362,11 @@ args_get :: proc(args: ^Args, key: string) -> string {
 header_set :: proc(h: ^Header, key, value: string) {
 	sync.mutex_lock(&h.mutex)
 	defer sync.mutex_unlock(&h.mutex)
-	
+
 	if h.data == nil {
 		h.data = make(map[string][dynamic]string)
 	}
-	
+
 	lower_key := strings.to_lower(key)
 	if lower_key not_in h.data {
 		h.data[lower_key] = make([dynamic]string)
@@ -373,11 +378,11 @@ header_set :: proc(h: ^Header, key, value: string) {
 header_replace :: proc(h: ^Header, key, value: string) {
 	sync.mutex_lock(&h.mutex)
 	defer sync.mutex_unlock(&h.mutex)
-	
+
 	if h.data == nil {
 		h.data = make(map[string][dynamic]string)
 	}
-	
+
 	lower_key := strings.to_lower(key)
 	// Clear existing values if any
 	if lower_key in h.data {
@@ -392,11 +397,11 @@ header_replace :: proc(h: ^Header, key, value: string) {
 header_get :: proc(h: ^Header, key: string) -> string {
 	sync.mutex_lock(&h.mutex)
 	defer sync.mutex_unlock(&h.mutex)
-	
+
 	if h.data == nil {
 		return ""
 	}
-	
+
 	lower_key := strings.to_lower(key)
 	if values, ok := h.data[lower_key]; ok && len(values) > 0 {
 		return values[0]
@@ -408,11 +413,11 @@ header_get :: proc(h: ^Header, key: string) -> string {
 header_get_all :: proc(h: ^Header, key: string) -> []string {
 	sync.mutex_lock(&h.mutex)
 	defer sync.mutex_unlock(&h.mutex)
-	
+
 	if h.data == nil {
 		return nil
 	}
-	
+
 	lower_key := strings.to_lower(key)
 	if values, ok := h.data[lower_key]; ok {
 		return values[:]
@@ -423,11 +428,11 @@ header_get_all :: proc(h: ^Header, key: string) -> []string {
 header_has :: proc(h: ^Header, key: string) -> bool {
 	sync.mutex_lock(&h.mutex)
 	defer sync.mutex_unlock(&h.mutex)
-	
+
 	if h.data == nil {
 		return false
 	}
-	
+
 	lower_key := strings.to_lower(key)
 	values, ok := h.data[lower_key]
 	return ok && len(values) > 0
@@ -474,7 +479,7 @@ URI_Builder :: struct {
 	host:     string,
 	port:     int,
 	path:     string,
-	query: strings.Builder,
+	query:    strings.Builder,
 	fragment: string,
 }
 
@@ -491,7 +496,7 @@ uri_builder_new :: proc() -> URI_Builder {
 // uri_builder_set_scheme sets the scheme (http, https, etc.)
 uri_builder_set_scheme :: proc(b: ^URI_Builder, scheme: string) {
 	b.scheme = scheme
-	
+
 	// Set default port based on scheme
 	switch scheme {
 	case "http":
@@ -540,9 +545,9 @@ uri_builder_build :: proc(b: ^URI_Builder) -> string {
 	// Start with scheme://host
 	result := strings.builder_make()
 	defer strings.builder_destroy(&result)
-	
+
 	fmt.sbprintf(&result, "%s://%s", b.scheme, b.host)
-	
+
 	// Add port if non-default
 	needs_port := false
 	switch b.scheme {
@@ -555,25 +560,25 @@ uri_builder_build :: proc(b: ^URI_Builder) -> string {
 			needs_port = true
 		}
 	}
-	
+
 	if needs_port {
 		fmt.sbprintf(&result, ":%d", b.port)
 	}
-	
+
 	// Add path
 	fmt.sbprintf(&result, "%s", b.path)
-	
+
 	// Add query string if present
 	query_str := strings.to_string(b.query)
 	if query_str != "" {
 		fmt.sbprintf(&result, "?%s", query_str)
 	}
-	
+
 	// Add fragment if present
 	if b.fragment != "" {
 		fmt.sbprintf(&result, "#%s", b.fragment)
 	}
-	
+
 	return strings.to_string(result)
 }
 
@@ -583,20 +588,26 @@ uri_builder_destroy :: proc(b: ^URI_Builder) {
 }
 
 // Convenience function: build a URI from components
-uri_build :: proc(scheme, host: string, port: int, path: string, query_map: map[string]string, fragment: string) -> string {
+uri_build :: proc(
+	scheme, host: string,
+	port: int,
+	path: string,
+	query_map: map[string]string,
+	fragment: string,
+) -> string {
 	builder := uri_builder_new()
 	defer uri_builder_destroy(&builder)
-	
+
 	uri_builder_set_scheme(&builder, scheme)
 	uri_builder_set_host(&builder, host)
 	uri_builder_set_port(&builder, port)
 	uri_builder_set_path(&builder, path)
-	
+
 	for key, value in query_map {
 		uri_builder_add_query(&builder, key, value)
 	}
-	
+
 	uri_builder_set_fragment(&builder, fragment)
-	
+
 	return uri_builder_build(&builder)
 }
